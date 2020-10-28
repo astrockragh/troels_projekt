@@ -453,24 +453,28 @@ def double_gauss_fit(mass, bins = 100, range = (400, 600), ax = None, verbose = 
     else:
         return None, None, None, None
 
+def logit(p):
+    return np.log(p/(1-p))
 
-def roc_curve_data(mass, probs, Npoints = 10, bins = 100, range = (400, 600), ax_roc = None , ax_fits = None, verbose = True, plimit = 0.01, ax_hist = None):
+def roc_curve_data(mass, probs, Npoints = 10, bins = 100, range = (400, 600), ax_roc = None, c=0, ax_fits = None, verbose = True, plimit = 0.01, ax_hist = None, label=None):
     sigs, bkgrs, errs = [], [], []
     mass = np.array(mass)
     mass = mass[np.argsort(probs)]
     cuts = (len(mass) / Npoints * np.arange(0, Npoints)).astype(int)
     args = None
     max_size = None
-    from matplotlib.cm import winter
-    colors = winter(np.linspace(0, 1, Npoints)[::-1])
+    from matplotlib.cm import winter, viridis, magma
+    clist=[winter, viridis, magma]
+    colors = clist[c](np.linspace(0, 1, Npoints)[::-1])
     from scipy.special import logit
     lprobs = np.sort(probs)#np.sort(logit(probs))
+    lprobs=logit(lprobs)
     if ax_hist:
         n, edges, patches = ax_hist.hist(lprobs, bins = bins, histtype = 'stepfilled', color = 'gray')
 #         print(n)
         for cut, color in zip(cuts, colors):
             ax_hist.vlines(lprobs[cut], 0, max(n), color = color, linestyle = "dashed", alpha = 0.5)
-            
+        ax_hist.set(title='Probability distributions', xlabel='logit(p)', ylabel='N')
     for i, c in zip(cuts, colors):
         bkgr, sig, err, args = double_gauss_fit(mass[i:], bins = bins, range = range, ax = ax_fits, verbose = verbose, guesses = args, max_size = max_size, plimit = plimit, color = c)
         if bkgr:
@@ -479,7 +483,7 @@ def roc_curve_data(mass, probs, Npoints = 10, bins = 100, range = (400, 600), ax
             errs.append(err)
             if len(sigs) == 1:
                 max_size = 1 * args[2]
-
+    ax_fits.set(title='Mass fits', xlabel='Mass [MeV/c^2]', ylabel='N')
     sigs, bkgrs, errs = np.array(sigs), np.array(bkgrs), np.array(errs)
     y = sigs/sigs.max()
     x = bkgrs/bkgrs.max()
@@ -493,10 +497,10 @@ def roc_curve_data(mass, probs, Npoints = 10, bins = 100, range = (400, 600), ax
 #     y_errs = np.sqrt((errs/bkgrs.max()) ** 2 + (errs[bkgrs.argmax()] * bkgrs / bkgrs.max() ** 2) ** 2)
     
     if ax_roc:
-        ax_roc.scatter(x, y, c = colors)
+        ax_roc.scatter(x, y, c = colors, label=label)
 #         ax_roc.errorbar(x[:-1], y[:-1], x_errs, y_errs, elinewidth = 1, capsize = 2, color = 'k', ls = 'none')
-        ax_roc.set(xlim = (-0.2, 1.2), ylim = (-0.2, 1.2))
+        ax_roc.set(xlim = (-0.05, 1.05), ylim = (-0.05, 1.05), title=f'AUC estimate: {np.round(1+AUC_estimate, 5)}', xlabel='FPR', ylabel='TPR')
         ax_roc.vlines([0,1],0,1,ls='--',color='gray',zorder=-1)
         ax_roc.hlines([0,1],0,1,ls='--',color='gray',zorder=-1)
-        
+        ax_roc.legend()
     return AUC_estimate, cuts
